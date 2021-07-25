@@ -16,7 +16,6 @@ import com.android.apksig.ApkSigner;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -73,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void prepare(View view) {
         data = new byte[8192];
-        int len1 = 0;
+        int len1;
         //获取文件中的内容
         try(InputStream inputStream = getResources().openRawResource(R.raw.classes)) {
             len1 = inputStream.read(data);
@@ -84,14 +83,12 @@ public class MainActivity extends AppCompatActivity {
 
         try (FileOutputStream fos = this.openFileOutput(dexName, Context.MODE_PRIVATE)) {
             fos.write(data, 0, len1);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
 
         data = new byte[8192];
-        int len2 = 0;
+        int len2;
         //获取文件中的内容
         try(InputStream inputStream = getResources().openRawResource(R.raw.test)) {
             len2 = inputStream.read(data);
@@ -102,8 +99,6 @@ public class MainActivity extends AppCompatActivity {
 
         try (FileOutputStream fos = this.openFileOutput(keyFileName, Context.MODE_PRIVATE)) {
             fos.write(data, 0, len2);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
