@@ -1,0 +1,2 @@
+rootProject.name = "PlaceHolder"
+include ':app'
