@@ -23,7 +23,9 @@
  * questions.
  */
 
-package java.util;
+// java.util.Base64
+
+package pers.roger.placeholder.util;
 
 import java.io.FilterOutputStream;
 import java.io.InputStream;
@@ -31,6 +33,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * This class consists exclusively of static methods for obtaining
@@ -234,8 +238,8 @@ public class Base64 {
         static final Encoder RFC4648_URLSAFE = new Encoder(true, null, -1, true);
         static final Encoder RFC2045 = new Encoder(false, CRLF, MIMELINEMAX, true);
 
-        private final int outLength(int srclen) {
-            int len = 0;
+        private int outLength(int srclen) {
+            int len;
             if (doPadding) {
                 len = 4 * ((srclen + 2) / 3);
             } else {
@@ -669,7 +673,7 @@ public class Base64 {
                         len -= (sl - sp + 1);
                         break;
                     }
-                    if ((b = base64[b]) == -1)
+                    if (base64[b] == -1)
                         n++;
                 }
                 len -= n;
