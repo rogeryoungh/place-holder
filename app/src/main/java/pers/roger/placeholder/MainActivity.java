@@ -141,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void share(View view) {
-        File file = new File(this.getFilesDir(), inputApkName);
+        File file = new File(this.getFilesDir(), outputApkName);
 
         Uri uri = FileProvider.getUriForFile( this, getPackageName()+".fileprovider", file);
         Intent share = new Intent(Intent.ACTION_SEND);
