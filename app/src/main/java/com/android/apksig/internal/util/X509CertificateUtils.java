@@ -30,8 +30,9 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collection;
+
+import pers.roger.placeholder.util.Base64;
 
 /**
  * Provides methods to generate {@code X509Certificate}s from their encoded form. These methods
@@ -132,9 +133,7 @@ public class X509CertificateUtils {
             byte[] originalEncoding = new byte[encodedCertBuffer.position() - startingPos];
             encodedCertBuffer.position(startingPos);
             encodedCertBuffer.get(originalEncoding);
-            GuaranteedEncodedFormX509Certificate guaranteedEncodedCert =
-                    new GuaranteedEncodedFormX509Certificate(certificate, originalEncoding);
-            return guaranteedEncodedCert;
+            return new GuaranteedEncodedFormX509Certificate(certificate, originalEncoding);
         } catch (Asn1DecodingException | Asn1EncodingException | CertificateException e) {
             throw new CertificateException("Failed to parse certificate", e);
         }

@@ -16,12 +16,6 @@
 
 package com.android.apksig.internal.apk.v1;
 
-import static com.android.apksig.internal.oid.OidConstants.getSigAlgSupportedApiLevels;
-import static com.android.apksig.internal.pkcs7.AlgorithmIdentifier.getJcaDigestAlgorithm;
-import static com.android.apksig.internal.pkcs7.AlgorithmIdentifier.getJcaSignatureAlgorithm;
-import static com.android.apksig.internal.x509.Certificate.findCertificate;
-import static com.android.apksig.internal.x509.Certificate.parseCertificates;
-
 import com.android.apksig.ApkVerifier.Issue;
 import com.android.apksig.ApkVerifier.IssueWithParams;
 import com.android.apksig.apk.ApkFormatException;
@@ -63,8 +57,6 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
-import java.util.Base64.Decoder;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -75,6 +67,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.jar.Attributes;
+
+import pers.roger.placeholder.util.Base64;
+
+import static com.android.apksig.internal.oid.OidConstants.getSigAlgSupportedApiLevels;
+import static com.android.apksig.internal.pkcs7.AlgorithmIdentifier.getJcaDigestAlgorithm;
+import static com.android.apksig.internal.pkcs7.AlgorithmIdentifier.getJcaSignatureAlgorithm;
+import static com.android.apksig.internal.x509.Certificate.findCertificate;
+import static com.android.apksig.internal.x509.Certificate.parseCertificates;
 
 /**
  * APK verifier which uses JAR signing (aka v1 signing scheme).
@@ -1111,7 +1111,7 @@ public abstract class V1SchemeVerifier {
             String digestAttrSuffix,
             int minSdkVersion,
             int maxSdkVersion) {
-        Decoder base64Decoder = Base64.getDecoder();
+        Base64.Decoder base64Decoder = Base64.getDecoder();
         List<NamedDigest> result = new ArrayList<>(1);
         if (minSdkVersion < AndroidSdkVersion.JELLY_BEAN_MR2) {
             // Prior to JB MR2, Android platform's logic for picking a digest algorithm to verify is
