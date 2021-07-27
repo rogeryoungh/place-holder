@@ -16,10 +16,6 @@
 
 package com.android.apksig.internal.apk;
 
-import static com.android.apksig.internal.apk.ContentDigestAlgorithm.CHUNKED_SHA256;
-import static com.android.apksig.internal.apk.ContentDigestAlgorithm.CHUNKED_SHA512;
-import static com.android.apksig.internal.apk.ContentDigestAlgorithm.VERITY_CHUNKED_SHA256;
-
 import com.android.apksig.ApkVerifier;
 import com.android.apksig.SigningCertificateLineage;
 import com.android.apksig.apk.ApkFormatException;
@@ -81,9 +77,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 
 import javax.security.auth.x500.X500Principal;
+
+import pers.roger.placeholder.util.Supplier;
+
+import static com.android.apksig.internal.apk.ContentDigestAlgorithm.CHUNKED_SHA256;
+import static com.android.apksig.internal.apk.ContentDigestAlgorithm.CHUNKED_SHA512;
+import static com.android.apksig.internal.apk.ContentDigestAlgorithm.VERITY_CHUNKED_SHA256;
 
 public class ApkSigningBlockUtils {
 
