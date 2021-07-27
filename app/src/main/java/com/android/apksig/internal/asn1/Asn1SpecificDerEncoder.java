@@ -18,6 +18,7 @@ package com.android.apksig.internal.asn1;
 
 import com.android.apksig.internal.asn1.ber.BerEncoding;
 import com.android.apksig.internal.pkcs7.ContentInfo;
+import com.android.apksig.internal.pkcs7.EncapsulatedContentInfo;
 import com.android.apksig.internal.pkcs7.SignedData;
 
 import java.io.ByteArrayOutputStream;
@@ -639,7 +640,7 @@ public final class Asn1SpecificDerEncoder {
             serializedFields.add(serializedField);
 
 
-            serializedField = Asn1SpecificDerEncoder.encode(object.encapContentInfo);
+            serializedField = EncapsulatedContentInfoEncoder.encode(object.encapContentInfo);
             serializedFields.add(serializedField);
 
 
@@ -659,6 +660,34 @@ public final class Asn1SpecificDerEncoder {
 
             serializedField = toSetOf(object.signerInfos, Asn1Type.ANY);
             serializedFields.add(serializedField);
+
+            return createTag(
+                    BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
+                    serializedFields.toArray(new byte[0][]));
+        }
+    }
+
+    public static class EncapsulatedContentInfoEncoder {
+        public static byte[] encode(EncapsulatedContentInfo object) throws Asn1EncodingException {
+
+            List<byte[]> serializedFields = new ArrayList<>(2);
+            byte[] serializedField;
+
+            serializedField = toOid(object.contentType);
+            serializedFields.add(serializedField);
+
+
+            if (object.content != null) {
+                ByteBuffer buf = object.content;
+                byte[] value = new byte[buf.remaining()];
+                buf.slice().get(value);
+                serializedField = createTag(
+                        BerEncoding.TAG_CLASS_UNIVERSAL,
+                        false,
+                        BerEncoding.getTagNumber(Asn1Type.OCTET_STRING),
+                        value);
+                serializedFields.add(serializedField);
+            }
 
             return createTag(
                     BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
