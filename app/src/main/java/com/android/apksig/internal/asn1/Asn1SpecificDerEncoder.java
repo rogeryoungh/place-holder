@@ -63,7 +63,7 @@ public final class Asn1SpecificDerEncoder {
             return AlgorithmIdentifierEncoder.encode((AlgorithmIdentifier) container);
         }
         if(containerClass == SignerInfo.class) {
-            return Asn1InfoDerEncoder.encode((SignerInfo) container);
+            return SignerInfoEncoder.encode((SignerInfo) container);
         }
         Asn1Class containerAnnotation = null;
         containerAnnotation = containerClass.getDeclaredAnnotation(Asn1Class.class);
@@ -119,6 +119,9 @@ public final class Asn1SpecificDerEncoder {
     private static byte[] toSequence(Object container, boolean omitTag)
             throws Asn1EncodingException {
         Class<?> containerClass = container.getClass();
+        if(containerClass == IssuerAndSerialNumber.class) {
+            return IssuerAndSerialNumberEncoder.encode((IssuerAndSerialNumber) container);
+        }
         List<AnnotatedField> fields = getAnnotatedFields(container);
         Collections.sort(
                 fields, (f1, f2) -> f1.getAnnotation().index() - f2.getAnnotation().index());
@@ -726,11 +729,63 @@ public final class Asn1SpecificDerEncoder {
             List<byte[]> serializedFields = new ArrayList<>(2);
             byte[] serializedField;
 
-            serializedField = Asn1SpecificDerEncoder.Asn1OpaqueObjectEncoder.encode(object.issuer);
+            serializedField = Asn1OpaqueObjectEncoder.encode(object.issuer);
             serializedFields.add(serializedField);
 
             serializedField = toInteger(object.certificateSerialNumber);
             serializedFields.add(serializedField);
+
+            return createTag(
+                    BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
+                    serializedFields.toArray(new byte[0][]));
+        }
+    }
+
+    public static class SignerInfoEncoder {
+        public static byte[] encode(SignerInfo object) throws Asn1EncodingException {
+
+            List<byte[]> serializedFields = new ArrayList<>(7);
+            byte[] serializedField;
+
+
+            serializedField = toInteger(object.version);
+            serializedFields.add(serializedField);
+
+
+            serializedField = toChoice(object.sid);
+            serializedFields.add(serializedField);
+
+            serializedField = AlgorithmIdentifierEncoder.encode(object.digestAlgorithm);
+            serializedFields.add(serializedField);
+
+            if(object.signedAttrs != null) {
+                // WHY signedAttrs is SET_OF ???
+                serializedField = toSetOf((Collection<?>) object.signedAttrs, Asn1Type.ANY);
+                serializedField[0] = BerEncoding.setTagNumber(serializedField[0], 0);
+                serializedField[0] = BerEncoding.setTagClass(serializedField[0], BerEncoding.TAG_CLASS_UNIVERSAL);
+                serializedFields.add(serializedField);
+            }
+
+            serializedField = AlgorithmIdentifierEncoder.encode(object.signatureAlgorithm);
+            serializedFields.add(serializedField);
+
+            ByteBuffer buf = object.signature;
+            byte[] value = new byte[buf.remaining()];
+            buf.slice().get(value);
+            serializedField = createTag(
+                    BerEncoding.TAG_CLASS_UNIVERSAL,
+                    false,
+                    BerEncoding.getTagNumber(Asn1Type.OCTET_STRING),
+                    value);
+            serializedFields.add(serializedField);
+
+
+            if(object.unsignedAttrs != null) {
+                serializedField = toSetOf((Collection<?>) object.unsignedAttrs, Asn1Type.ANY);
+                serializedField[0] = BerEncoding.setTagNumber(serializedField[0], 1);
+                serializedField[0] = BerEncoding.setTagClass(serializedField[0], BerEncoding.TAG_CLASS_UNIVERSAL);
+                serializedFields.add(serializedField);
+            }
 
             return createTag(
                     BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
