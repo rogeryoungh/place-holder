@@ -21,6 +21,7 @@ import com.android.apksig.SigningCertificateLineage;
 import com.android.apksig.apk.ApkFormatException;
 import com.android.apksig.apk.ApkUtils;
 import com.android.apksig.internal.asn1.Asn1BerParser;
+import com.android.apksig.internal.asn1.Asn1BerSpecificParser;
 import com.android.apksig.internal.asn1.Asn1DecodingException;
 import com.android.apksig.internal.asn1.Asn1DerEncoder;
 import com.android.apksig.internal.asn1.Asn1EncodingException;
@@ -680,8 +681,7 @@ public class ApkSigningBlockUtils {
                     // and exponent.
                     ByteBuffer subjectPublicKeyBuffer = subjectPublicKeyInfo.subjectPublicKey;
                     byte padding = subjectPublicKeyBuffer.get();
-                    RSAPublicKey rsaPublicKey = Asn1BerParser.parse(subjectPublicKeyBuffer,
-                            RSAPublicKey.class);
+                    RSAPublicKey rsaPublicKey = Asn1BerSpecificParser.RSA.parse(subjectPublicKeyBuffer);
                     // if the modulus is negative then attempt to reencode it with a leading 0 sign
                     // byte.
                     if (rsaPublicKey.modulus.compareTo(BigInteger.ZERO) < 0) {
