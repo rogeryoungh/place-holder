@@ -23,6 +23,7 @@ import com.android.apksig.apk.ApkUtils;
 import com.android.apksig.internal.asn1.Asn1DerEncoder;
 import com.android.apksig.internal.asn1.Asn1EncodingException;
 import com.android.apksig.internal.asn1.Asn1OpaqueObject;
+import com.android.apksig.internal.asn1.Asn1SpecificDerEncoder;
 import com.android.apksig.internal.pkcs7.AlgorithmIdentifier;
 import com.android.apksig.internal.pkcs7.ContentInfo;
 import com.android.apksig.internal.pkcs7.EncapsulatedContentInfo;
@@ -1157,7 +1158,7 @@ public class ApkSigningBlockUtils {
         ContentInfo contentInfo = new ContentInfo();
         contentInfo.contentType = Pkcs7Constants.OID_SIGNED_DATA;
         contentInfo.content = new Asn1OpaqueObject(Asn1DerEncoder.encode(signedData));
-        return Asn1DerEncoder.encode(contentInfo);
+        return Asn1SpecificDerEncoder.ContentInfoEncoder.encode(contentInfo);
     }
 
     /**
