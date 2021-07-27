@@ -17,6 +17,7 @@
 package com.android.apksig.internal.asn1;
 
 import com.android.apksig.internal.asn1.ber.BerEncoding;
+import com.android.apksig.internal.pkcs7.AlgorithmIdentifier;
 import com.android.apksig.internal.pkcs7.ContentInfo;
 import com.android.apksig.internal.pkcs7.EncapsulatedContentInfo;
 import com.android.apksig.internal.pkcs7.SignedData;
@@ -56,6 +57,9 @@ public final class Asn1SpecificDerEncoder {
      */
     public static byte[] encode(Object container) throws Asn1EncodingException {
         Class<?> containerClass = container.getClass();
+        if(containerClass == AlgorithmIdentifier.class) {
+            return AlgorithmIdentifierEncoder.encode((AlgorithmIdentifier) container);
+        }
         Asn1Class containerAnnotation = null;
         containerAnnotation = containerClass.getDeclaredAnnotation(Asn1Class.class);
         if (containerAnnotation == null) {
@@ -688,6 +692,27 @@ public final class Asn1SpecificDerEncoder {
                         value);
                 serializedFields.add(serializedField);
             }
+
+            return createTag(
+                    BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
+                    serializedFields.toArray(new byte[0][]));
+        }
+    }
+
+    public static class AlgorithmIdentifierEncoder {
+        public static byte[] encode(AlgorithmIdentifier object) throws Asn1EncodingException {
+
+            List<byte[]> serializedFields = new ArrayList<>(2);
+            byte[] serializedField;
+
+            serializedField = toOid(object.algorithm);
+            serializedFields.add(serializedField);
+
+            if(object.parameters != null) {
+                serializedField = Asn1OpaqueObjectEncoder.encode(object.parameters);
+                serializedFields.add(serializedField);
+            }
+
 
             return createTag(
                     BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
