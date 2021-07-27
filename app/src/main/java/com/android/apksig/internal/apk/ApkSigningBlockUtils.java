@@ -20,9 +20,6 @@ import com.android.apksig.ApkVerifier;
 import com.android.apksig.SigningCertificateLineage;
 import com.android.apksig.apk.ApkFormatException;
 import com.android.apksig.apk.ApkUtils;
-import com.android.apksig.internal.asn1.Asn1BerParser;
-import com.android.apksig.internal.asn1.Asn1BerSpecificParser;
-import com.android.apksig.internal.asn1.Asn1DecodingException;
 import com.android.apksig.internal.asn1.Asn1DerEncoder;
 import com.android.apksig.internal.asn1.Asn1EncodingException;
 import com.android.apksig.internal.asn1.Asn1OpaqueObject;
@@ -40,8 +37,6 @@ import com.android.apksig.internal.util.GuaranteedEncodedFormX509Certificate;
 import com.android.apksig.internal.util.Pair;
 import com.android.apksig.internal.util.VerityTreeBuilder;
 import com.android.apksig.internal.util.X509CertificateUtils;
-import com.android.apksig.internal.x509.RSAPublicKey;
-import com.android.apksig.internal.x509.SubjectPublicKeyInfo;
 import com.android.apksig.internal.zip.ZipUtils;
 import com.android.apksig.util.DataSink;
 import com.android.apksig.util.DataSinks;
@@ -50,13 +45,11 @@ import com.android.apksig.util.DataSources;
 import com.android.apksig.util.RunnablesExecutor;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.security.DigestException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.KeyFactory;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -67,8 +60,6 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.security.spec.AlgorithmParameterSpec;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -662,75 +653,10 @@ public class ApkSigningBlockUtils {
         result[offset + 3] = (byte) ((value >> 24) & 0xff);
     }
 
-    public static byte[] encodePublicKey(PublicKey publicKey)
-            throws InvalidKeyException, NoSuchAlgorithmException {
+    public static byte[] encodePublicKey(PublicKey publicKey) {
         byte[] encodedPublicKey = null;
         if ("X.509".equals(publicKey.getFormat())) {
             encodedPublicKey = publicKey.getEncoded();
-            // if the key is an RSA key check for a negative modulus
-            if ("RSA".equals(publicKey.getAlgorithm())) {
-                try {
-                    // Parse the encoded public key into the separate elements of the
-                    // SubjectPublicKeyInfo to obtain the SubjectPublicKey.
-                    ByteBuffer encodedPublicKeyBuffer = ByteBuffer.wrap(encodedPublicKey);
-                    SubjectPublicKeyInfo subjectPublicKeyInfo = Asn1BerParser.parse(
-                            encodedPublicKeyBuffer, SubjectPublicKeyInfo.class);
-                    // The SubjectPublicKey is encoded as a bit string within the
-                    // SubjectPublicKeyInfo. The first byte of the encoding is the number of padding
-                    // bits; store this and decode the rest of the bit string into the RSA modulus
-                    // and exponent.
-                    ByteBuffer subjectPublicKeyBuffer = subjectPublicKeyInfo.subjectPublicKey;
-                    byte padding = subjectPublicKeyBuffer.get();
-                    RSAPublicKey rsaPublicKey = Asn1BerSpecificParser.RSA.parse(subjectPublicKeyBuffer);
-                    // if the modulus is negative then attempt to reencode it with a leading 0 sign
-                    // byte.
-                    if (rsaPublicKey.modulus.compareTo(BigInteger.ZERO) < 0) {
-                        // A negative modulus indicates the leading bit in the integer is 1. Per
-                        // ASN.1 encoding rules to encode a positive integer with the leading bit
-                        // set to 1 a byte containing all zeros should precede the integer encoding.
-                        byte[] encodedModulus = rsaPublicKey.modulus.toByteArray();
-                        byte[] reencodedModulus = new byte[encodedModulus.length + 1];
-                        reencodedModulus[0] = 0;
-                        System.arraycopy(encodedModulus, 0, reencodedModulus, 1,
-                                encodedModulus.length);
-                        rsaPublicKey.modulus = new BigInteger(reencodedModulus);
-                        // Once the modulus has been corrected reencode the RSAPublicKey, then
-                        // restore the padding value in the bit string and reencode the entire
-                        // SubjectPublicKeyInfo to be returned to the caller.
-                        byte[] reencodedRSAPublicKey = Asn1DerEncoder.encode(rsaPublicKey);
-                        byte[] reencodedSubjectPublicKey =
-                                new byte[reencodedRSAPublicKey.length + 1];
-                        reencodedSubjectPublicKey[0] = padding;
-                        System.arraycopy(reencodedRSAPublicKey, 0, reencodedSubjectPublicKey, 1,
-                                reencodedRSAPublicKey.length);
-                        subjectPublicKeyInfo.subjectPublicKey = ByteBuffer.wrap(
-                                reencodedSubjectPublicKey);
-                        encodedPublicKey = Asn1DerEncoder.encode(subjectPublicKeyInfo);
-                    }
-                } catch (Asn1DecodingException | Asn1EncodingException e) {
-                    System.out.println("Caught a exception encoding the public key: " + e);
-                    e.printStackTrace();
-                    encodedPublicKey = null;
-                }
-            }
-        }
-        if (encodedPublicKey == null) {
-            try {
-                encodedPublicKey =
-                        KeyFactory.getInstance(publicKey.getAlgorithm())
-                                .getKeySpec(publicKey, X509EncodedKeySpec.class)
-                                .getEncoded();
-            } catch (InvalidKeySpecException e) {
-                throw new InvalidKeyException(
-                        "Failed to obtain X.509 encoded form of public key " + publicKey
-                                + " of class " + publicKey.getClass().getName(),
-                        e);
-            }
-        }
-        if ((encodedPublicKey == null) || (encodedPublicKey.length == 0)) {
-            throw new InvalidKeyException(
-                    "Failed to obtain X.509 encoded form of public key " + publicKey
-                            + " of class " + publicKey.getClass().getName());
         }
         return encodedPublicKey;
     }

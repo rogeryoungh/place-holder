@@ -671,43 +671,4 @@ public final class Asn1BerSpecificParser {
                     "Unsupported conversion: ASN.1 " + sourceType + " to " + targetType.getName());
         }
     }
-
-    public static class RSA {
-        public static RSAPublicKey parse(ByteBuffer encoded)
-                throws Asn1DecodingException {
-            RSAPublicKey key = new RSAPublicKey();
-
-            BerDataValue containerDataValue;
-            BerDataValue dataValue;
-            ByteBuffer encodedContents;
-            BigInteger bigInteger;
-            try {
-                containerDataValue = new ByteBufferBerDataValueReader(encoded).readDataValue();
-            } catch (BerDataValueFormatException e) {
-                throw new Asn1DecodingException("Failed to decode top-level data value", e);
-            }
-
-
-            BerDataValueReader elementsReader = containerDataValue.contentsReader();
-
-
-            try {
-                dataValue = elementsReader.readDataValue();
-                encodedContents = dataValue.getEncodedContents();
-                bigInteger = integerToBigInteger(encodedContents);
-                key.modulus = bigInteger;
-
-
-                dataValue = elementsReader.readDataValue();
-                encodedContents = dataValue.getEncodedContents();
-                bigInteger = integerToBigInteger(encodedContents);
-                key.publicExponent = bigInteger;
-
-
-            } catch (BerDataValueFormatException e) {
-                e.printStackTrace();
-            }
-            return key;
-        }
-    }
 }

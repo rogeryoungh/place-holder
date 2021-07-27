@@ -16,8 +16,6 @@
 
 package com.android.apksig.internal.apk.v4;
 
-import static com.android.apksig.internal.apk.ApkSigningBlockUtils.toHex;
-
 import com.android.apksig.ApkVerifier;
 import com.android.apksig.ApkVerifier.Issue;
 import com.android.apksig.internal.apk.ApkSigningBlockUtils;
@@ -43,6 +41,8 @@ import java.security.cert.X509Certificate;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
+
+import static com.android.apksig.internal.apk.ApkSigningBlockUtils.toHex;
 
 /**
  * APK Signature Scheme V4 verifier.
@@ -192,14 +192,8 @@ public abstract class V4SchemeVerifier {
         result.certs.add(certificate);
 
         byte[] certificatePublicKeyBytes;
-        try {
-            certificatePublicKeyBytes = ApkSigningBlockUtils.encodePublicKey(
-                    certificate.getPublicKey());
-        } catch (InvalidKeyException e) {
-            System.out.println("Caught an exception encoding the public key: " + e);
-            e.printStackTrace();
-            certificatePublicKeyBytes = certificate.getPublicKey().getEncoded();
-        }
+        certificatePublicKeyBytes = ApkSigningBlockUtils.encodePublicKey(
+                certificate.getPublicKey());
         if (!Arrays.equals(publicKeyBytes, certificatePublicKeyBytes)) {
             result.addError(
                     Issue.V4_SIG_PUBLIC_KEY_MISMATCH_BETWEEN_CERTIFICATE_AND_SIGNATURES_RECORD,

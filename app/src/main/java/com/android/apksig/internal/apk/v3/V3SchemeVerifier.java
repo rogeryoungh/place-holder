@@ -16,9 +16,6 @@
 
 package com.android.apksig.internal.apk.v3;
 
-import static com.android.apksig.internal.apk.ApkSigningBlockUtils.getLengthPrefixedSlice;
-import static com.android.apksig.internal.apk.ApkSigningBlockUtils.readLengthPrefixedByteArray;
-
 import com.android.apksig.ApkVerifier.Issue;
 import com.android.apksig.SigningCertificateLineage;
 import com.android.apksig.apk.ApkFormatException;
@@ -57,6 +54,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+
+import static com.android.apksig.internal.apk.ApkSigningBlockUtils.getLengthPrefixedSlice;
+import static com.android.apksig.internal.apk.ApkSigningBlockUtils.readLengthPrefixedByteArray;
 
 /**
  * APK Signature Scheme v3 verifier.
@@ -431,13 +431,7 @@ public abstract class V3SchemeVerifier {
         }
         X509Certificate mainCertificate = result.certs.get(0);
         byte[] certificatePublicKeyBytes;
-        try {
-            certificatePublicKeyBytes = ApkSigningBlockUtils.encodePublicKey(mainCertificate.getPublicKey());
-        } catch (InvalidKeyException e) {
-            System.out.println("Caught an exception encoding the public key: " + e);
-            e.printStackTrace();
-            certificatePublicKeyBytes = mainCertificate.getPublicKey().getEncoded();
-        }
+        certificatePublicKeyBytes = ApkSigningBlockUtils.encodePublicKey(mainCertificate.getPublicKey());
         if (!Arrays.equals(publicKeyBytes, certificatePublicKeyBytes)) {
             result.addError(
                     Issue.V3_SIG_PUBLIC_KEY_MISMATCH_BETWEEN_CERTIFICATE_AND_SIGNATURES_RECORD,
