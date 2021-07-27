@@ -18,6 +18,7 @@ package com.android.apksig.internal.asn1;
 
 import com.android.apksig.internal.asn1.ber.BerEncoding;
 import com.android.apksig.internal.pkcs7.ContentInfo;
+import com.android.apksig.internal.pkcs7.SignedData;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
@@ -604,6 +605,7 @@ public final class Asn1SpecificDerEncoder {
             return result;
         }
     }
+
     public static class ContentInfoEncoder {
         public static byte[] encode(ContentInfo object) throws Asn1EncodingException {
             List<byte[]> serializedFields = new ArrayList<>(2);
@@ -614,6 +616,48 @@ public final class Asn1SpecificDerEncoder {
 
             byte[] bytes = Asn1OpaqueObjectEncoder.encode(object.content);
             serializedField = createTag(2, true, 0, bytes);
+            serializedFields.add(serializedField);
+
+            return createTag(
+                    BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
+                    serializedFields.toArray(new byte[0][]));
+        }
+    }
+
+    public static class SignedDataEncoder {
+        public static byte[] encode(SignedData object) throws Asn1EncodingException {
+
+            List<byte[]> serializedFields = new ArrayList<>(6);
+            byte[] serializedField = null;
+
+
+            serializedField = toInteger(object.version);
+            serializedFields.add(serializedField);
+
+
+            serializedField = toSetOf(object.digestAlgorithms, Asn1Type.ANY);
+            serializedFields.add(serializedField);
+
+
+            serializedField = Asn1SpecificDerEncoder.encode(object.encapContentInfo);
+            serializedFields.add(serializedField);
+
+
+            if(object.certificates != null) {
+                serializedField = toSetOf(object.certificates, Asn1Type.ANY);
+                serializedField[0] = BerEncoding.setTagNumber(serializedField[0], 0);
+                serializedField[0] = BerEncoding.setTagClass(serializedField[0], 2);
+                serializedFields.add(serializedField);
+            }
+
+            if(object.crls != null) {
+                serializedField = toSetOf(object.crls, Asn1Type.ANY);
+                serializedField[0] = BerEncoding.setTagNumber(serializedField[0], 1);
+                serializedField[0] = BerEncoding.setTagClass(serializedField[0], 2);
+                serializedFields.add(serializedField);
+            }
+
+            serializedField = toSetOf(object.signerInfos, Asn1Type.ANY);
             serializedFields.add(serializedField);
 
             return createTag(
