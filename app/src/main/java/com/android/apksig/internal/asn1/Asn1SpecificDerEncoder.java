@@ -22,11 +22,10 @@ import com.android.apksig.internal.pkcs7.ContentInfo;
 import com.android.apksig.internal.pkcs7.EncapsulatedContentInfo;
 import com.android.apksig.internal.pkcs7.IssuerAndSerialNumber;
 import com.android.apksig.internal.pkcs7.SignedData;
+import com.android.apksig.internal.pkcs7.SignerIdentifier;
 import com.android.apksig.internal.pkcs7.SignerInfo;
 
 import java.io.ByteArrayOutputStream;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -60,141 +59,44 @@ public final class Asn1SpecificDerEncoder {
     public static byte[] encode(Object container) throws Asn1EncodingException {
         Class<?> containerClass = container.getClass();
         if(containerClass == AlgorithmIdentifier.class) {
-            return AlgorithmIdentifierEncoder.encode((AlgorithmIdentifier) container);
+            return AlgorithmIdentifierEncoder((AlgorithmIdentifier) container);
         }
-        if(containerClass == SignerInfo.class) {
-            return SignerInfoEncoder.encode((SignerInfo) container);
-        }
-        Asn1Class containerAnnotation = null;
-        containerAnnotation = containerClass.getDeclaredAnnotation(Asn1Class.class);
-
-        Asn1Type containerType = containerAnnotation.type();
-        switch (containerType) {
-            case CHOICE:
-                return toChoice(container);
-            case SEQUENCE:
-                return toSequence(container);
-            case UNENCODED_CONTAINER:
-                return toSequence(container, true);
-            default:
-                throw new Asn1EncodingException("Unsupported container type: " + containerType);
-        }
+        return SignerInfoEncoder((SignerInfo) container);
     }
 
-    private static byte[] toChoice(Object container) throws Asn1EncodingException {
-        Class<?> containerClass = container.getClass();
-        List<AnnotatedField> fields = getAnnotatedFields(container);
-        if (fields.isEmpty()) {
-            throw new Asn1EncodingException(
-                    "No fields annotated with " + Asn1Field.class.getName()
-                            + " in CHOICE class " + containerClass.getName());
-        }
+    private static byte[] toChoice(SignerIdentifier container) {
+        if(container.issuerAndSerialNumber != null)
+            return IssuerAndSerialNumberEncoder(container.issuerAndSerialNumber);
 
-        AnnotatedField resultField = null;
-        for (AnnotatedField field : fields) {
-            Object fieldValue = getMemberFieldValue(container, field.getField());
-            if (fieldValue != null) {
-                if (resultField != null) {
-                    throw new Asn1EncodingException(
-                            "Multiple non-null fields in CHOICE class " + containerClass.getName()
-                                    + ": " + resultField.getField().getName()
-                                    + ", " + field.getField().getName());
-                }
-                resultField = field;
-            }
-        }
+        ByteBuffer buf = container.subjectKeyIdentifier;
+        byte[] value = new byte[buf.remaining()];
+        buf.slice().get(value);
+        value = createTag(
+                BerEncoding.TAG_CLASS_UNIVERSAL,
+                false,
+                BerEncoding.getTagNumber(Asn1Type.OCTET_STRING),
+                value);
 
-        if (resultField == null) {
-            throw new Asn1EncodingException(
-                    "No non-null fields in CHOICE class " + containerClass.getName());
-        }
-
-        return resultField.toDer();
+        value[0] = BerEncoding.setTagNumber(value[0], 0);
+        value[0] = BerEncoding.setTagClass(value[0], 0);
+        return value;
     }
 
-    private static byte[] toSequence(Object container) throws Asn1EncodingException {
-        return toSequence(container, false);
+    private static byte[] toSetOf(Collection<?> values) throws Asn1EncodingException {
+        return toSequenceOrSetOf(values);
     }
 
-    private static byte[] toSequence(Object container, boolean omitTag)
-            throws Asn1EncodingException {
-        Class<?> containerClass = container.getClass();
-        if(containerClass == IssuerAndSerialNumber.class) {
-            return IssuerAndSerialNumberEncoder.encode((IssuerAndSerialNumber) container);
-        }
-        List<AnnotatedField> fields = getAnnotatedFields(container);
-        Collections.sort(
-                fields, (f1, f2) -> f1.getAnnotation().index() - f2.getAnnotation().index());
-        if (fields.size() > 1) {
-            AnnotatedField lastField = null;
-            for (AnnotatedField field : fields) {
-                if ((lastField != null)
-                        && (lastField.getAnnotation().index() == field.getAnnotation().index())) {
-                    throw new Asn1EncodingException(
-                            "Fields have the same index: " + containerClass.getName()
-                                    + "." + lastField.getField().getName()
-                                    + " and ." + field.getField().getName());
-                }
-                lastField = field;
-            }
-        }
-
-        List<byte[]> serializedFields = new ArrayList<>(fields.size());
-        int contentLen = 0;
-        for (AnnotatedField field : fields) {
-            byte[] serializedField;
-            try {
-                serializedField = field.toDer();
-            } catch (Asn1EncodingException e) {
-                throw new Asn1EncodingException(
-                        "Failed to encode " + containerClass.getName()
-                                + "." + field.getField().getName(),
-                        e);
-            }
-            if (serializedField != null) {
-                serializedFields.add(serializedField);
-                contentLen += serializedField.length;
-            }
-        }
-
-        if (omitTag) {
-            byte[] unencodedResult = new byte[contentLen];
-            int index = 0;
-            for (byte[] serializedField : serializedFields) {
-                System.arraycopy(serializedField, 0, unencodedResult, index, serializedField.length);
-                index += serializedField.length;
-            }
-            return unencodedResult;
-        } else {
-            return createTag(
-                    BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
-                    serializedFields.toArray(new byte[0][]));
-        }
-    }
-
-    private static byte[] toSetOf(Collection<?> values, Asn1Type elementType) throws Asn1EncodingException {
-        return toSequenceOrSetOf(values, elementType, true);
-    }
-
-    private static byte[] toSequenceOf(Collection<?> values, Asn1Type elementType) throws Asn1EncodingException {
-        return toSequenceOrSetOf(values, elementType, false);
-    }
-
-    private static byte[] toSequenceOrSetOf(Collection<?> values, Asn1Type elementType, boolean toSet)
+    private static byte[] toSequenceOrSetOf(Collection<?> values)
             throws Asn1EncodingException {
         List<byte[]> serializedValues = new ArrayList<>(values.size());
         for (Object value : values) {
-            serializedValues.add(JavaToDerConverter.toDer(value, elementType, null));
+            serializedValues.add(JavaToDerConverter.toDer(value, Asn1Type.ANY));
         }
         int tagNumber;
-        if (toSet) {
-            if (serializedValues.size() > 1) {
-                Collections.sort(serializedValues, ByteArrayLexicographicComparator.INSTANCE);
-            }
-            tagNumber = BerEncoding.TAG_NUMBER_SET;
-        } else {
-            tagNumber = BerEncoding.TAG_NUMBER_SEQUENCE;
+        if (serializedValues.size() > 1) {
+            Collections.sort(serializedValues, ByteArrayLexicographicComparator.INSTANCE);
         }
+        tagNumber = BerEncoding.TAG_NUMBER_SET;
         return createTag(
                 BerEncoding.TAG_CLASS_UNIVERSAL, true, tagNumber,
                 serializedValues.toArray(new byte[0][]));
@@ -222,36 +124,6 @@ public final class Asn1SpecificDerEncoder {
             }
     }
 
-    private static List<AnnotatedField> getAnnotatedFields(Object container)
-            throws Asn1EncodingException {
-        Class<?> containerClass = container.getClass();
-        Field[] declaredFields = containerClass.getDeclaredFields();
-        List<AnnotatedField> result = new ArrayList<>(declaredFields.length);
-        for (Field field : declaredFields) {
-            Asn1Field annotation = field.getDeclaredAnnotation(Asn1Field.class);
-            if (annotation == null) {
-                continue;
-            }
-            if (Modifier.isStatic(field.getModifiers())) {
-                throw new Asn1EncodingException(
-                        Asn1Field.class.getName() + " used on a static field: "
-                                + containerClass.getName() + "." + field.getName());
-            }
-
-            AnnotatedField annotatedField;
-            try {
-                annotatedField = new AnnotatedField(container, field, annotation);
-            } catch (Asn1EncodingException e) {
-                throw new Asn1EncodingException(
-                        "Invalid ASN.1 annotation on "
-                                + containerClass.getName() + "." + field.getName(),
-                        e);
-            }
-            result.add(annotatedField);
-        }
-        return result;
-    }
-
     private static byte[] toInteger(int value) {
         return toInteger((long) value);
     }
@@ -264,18 +136,6 @@ public final class Asn1SpecificDerEncoder {
         return createTag(
                 BerEncoding.TAG_CLASS_UNIVERSAL, false, BerEncoding.TAG_NUMBER_INTEGER,
                 value.toByteArray());
-    }
-
-    private static byte[] toBoolean(boolean value) {
-        // A boolean should be encoded in a single byte with a value of 0 for false and any non-zero
-        // value for true.
-        byte[] result = new byte[1];
-        if (value == false) {
-            result[0] = 0;
-        } else {
-            result[0] = 1;
-        }
-        return createTag(BerEncoding.TAG_CLASS_UNIVERSAL, false, BerEncoding.TAG_NUMBER_BOOLEAN, result);
     }
 
     private static byte[] toOid(String oid) throws Asn1EncodingException {
@@ -345,108 +205,6 @@ public final class Asn1SpecificDerEncoder {
                 encodedValue.toByteArray());
     }
 
-    private static Object getMemberFieldValue(Object obj, Field field)
-            throws Asn1EncodingException {
-        try {
-            return field.get(obj);
-        } catch (ReflectiveOperationException e) {
-            throw new Asn1EncodingException(
-                    "Failed to read " + obj.getClass().getName() + "." + field.getName(), e);
-        }
-    }
-
-    private static final class AnnotatedField {
-        private final Field mField;
-        private final Object mObject;
-        private final Asn1Field mAnnotation;
-        private final Asn1Type mDataType;
-        private final Asn1Type mElementDataType;
-        private final Asn1TagClass mTagClass;
-        private final int mDerTagClass;
-        private final int mDerTagNumber;
-        private final Asn1Tagging mTagging;
-        private final boolean mOptional;
-
-        public AnnotatedField(Object obj, Field field, Asn1Field annotation)
-                throws Asn1EncodingException {
-            mObject = obj;
-            mField = field;
-            mAnnotation = annotation;
-            mDataType = annotation.type();
-            mElementDataType = annotation.elementType();
-
-            Asn1TagClass tagClass = annotation.cls();
-            if (tagClass == Asn1TagClass.AUTOMATIC) {
-                if (annotation.tagNumber() != -1) {
-                    tagClass = Asn1TagClass.CONTEXT_SPECIFIC;
-                } else {
-                    tagClass = Asn1TagClass.UNIVERSAL;
-                }
-            }
-            mTagClass = tagClass;
-            mDerTagClass = BerEncoding.getTagClass(mTagClass);
-
-            int tagNumber;
-            if (annotation.tagNumber() != -1) {
-                tagNumber = annotation.tagNumber();
-            } else if ((mDataType == Asn1Type.CHOICE) || (mDataType == Asn1Type.ANY)) {
-                tagNumber = -1;
-            } else {
-                tagNumber = BerEncoding.getTagNumber(mDataType);
-            }
-            mDerTagNumber = tagNumber;
-
-            mTagging = annotation.tagging();
-            if (((mTagging == Asn1Tagging.EXPLICIT) || (mTagging == Asn1Tagging.IMPLICIT))
-                    && (annotation.tagNumber() == -1)) {
-                throw new Asn1EncodingException(
-                        "Tag number must be specified when tagging mode is " + mTagging);
-            }
-
-            mOptional = annotation.optional();
-        }
-
-        public Field getField() {
-            return mField;
-        }
-
-        public Asn1Field getAnnotation() {
-            return mAnnotation;
-        }
-
-        public byte[] toDer() throws Asn1EncodingException {
-            Object fieldValue = getMemberFieldValue(mObject, mField);
-            if (fieldValue == null) {
-                if (mOptional) {
-                    return null;
-                }
-                throw new Asn1EncodingException("Required field not set");
-            }
-
-            byte[] encoded = JavaToDerConverter.toDer(fieldValue, mDataType, mElementDataType);
-            switch (mTagging) {
-                case NORMAL:
-                    return encoded;
-                case EXPLICIT:
-                    return createTag(mDerTagClass, true, mDerTagNumber, encoded);
-                case IMPLICIT:
-                    int originalTagNumber = BerEncoding.getTagNumber(encoded[0]);
-                    if (originalTagNumber == 0x1f) {
-                        throw new Asn1EncodingException("High-tag-number form not supported");
-                    }
-                    if (mDerTagNumber >= 0x1f) {
-                        throw new Asn1EncodingException(
-                                "Unsupported high tag number: " + mDerTagNumber);
-                    }
-                    encoded[0] = BerEncoding.setTagNumber(encoded[0], mDerTagNumber);
-                    encoded[0] = BerEncoding.setTagClass(encoded[0], mDerTagClass);
-                    return encoded;
-                default:
-                    throw new RuntimeException("Unknown tagging mode: " + mTagging);
-            }
-        }
-    }
-
     private static byte[] createTag(
             int tagClass, boolean constructed, int tagNumber, byte[]... contents) {
         if (tagNumber >= 0x1f) {
@@ -511,7 +269,7 @@ public final class Asn1SpecificDerEncoder {
     private static final class JavaToDerConverter {
         private JavaToDerConverter() {}
 
-        public static byte[] toDer(Object source, Asn1Type targetType, Asn1Type targetElementType)
+        public static byte[] toDer(Object source, Asn1Type targetType)
                 throws Asn1EncodingException {
             Class<?> sourceType = source.getClass();
             if (Asn1OpaqueObject.class.equals(sourceType)) {
@@ -525,251 +283,84 @@ public final class Asn1SpecificDerEncoder {
                 return encode(source);
             }
 
-            switch (targetType) {
-                case OCTET_STRING:
-                case BIT_STRING:
-                    byte[] value = null;
-                    if (source instanceof ByteBuffer) {
-                        ByteBuffer buf = (ByteBuffer) source;
-                        value = new byte[buf.remaining()];
-                        buf.slice().get(value);
-                    } else if (source instanceof byte[]) {
-                        value = (byte[]) source;
-                    }
-                    if (value != null) {
-                        return createTag(
-                                BerEncoding.TAG_CLASS_UNIVERSAL,
-                                false,
-                                BerEncoding.getTagNumber(targetType),
-                                value);
-                    }
-                    break;
-                case INTEGER:
-                    if (source instanceof Integer) {
-                        return toInteger((Integer) source);
-                    } else if (source instanceof Long) {
-                        return toInteger((Long) source);
-                    } else if (source instanceof BigInteger) {
-                        return toInteger((BigInteger) source);
-                    }
-                    break;
-                case BOOLEAN:
-                    if (source instanceof Boolean) {
-                        return toBoolean((Boolean) (source));
-                    }
-                    break;
-                case UTC_TIME:
-                case GENERALIZED_TIME:
-                    if (source instanceof String) {
-                        return createTag(BerEncoding.TAG_CLASS_UNIVERSAL, false,
-                                BerEncoding.getTagNumber(targetType), ((String) source).getBytes());
-                    }
-                    break;
-                case OBJECT_IDENTIFIER:
-                    if (source instanceof String) {
-                        return toOid((String) source);
-                    }
-                    break;
-                case SEQUENCE:
-                {
-                    Asn1Class containerAnnotation =
-                            sourceType.getDeclaredAnnotation(Asn1Class.class);
-                    if ((containerAnnotation != null)
-                            && (containerAnnotation.type() == Asn1Type.SEQUENCE)) {
-                        return toSequence(source);
-                    }
-                    break;
-                }
-                case CHOICE:
-                {
-                    Asn1Class containerAnnotation =
-                            sourceType.getDeclaredAnnotation(Asn1Class.class);
-                    if ((containerAnnotation != null)
-                            && (containerAnnotation.type() == Asn1Type.CHOICE)) {
-                        return toChoice(source);
-                    }
-                    break;
-                }
-                case SET_OF:
-                    return toSetOf((Collection<?>) source, targetElementType);
-                case SEQUENCE_OF:
-                    return toSequenceOf((Collection<?>) source, targetElementType);
-                default:
-                    break;
-            }
-
-            throw new Asn1EncodingException(
-                    "Unsupported conversion: " + sourceType.getName() + " to ASN.1 " + targetType);
-        }
-    }
-    /** ASN.1 DER-encoded {@code NULL}. */
-    public static final Asn1OpaqueObject ASN1_DER_NULL =
-            new Asn1OpaqueObject(new byte[] {BerEncoding.TAG_NUMBER_NULL, 0});
-
-    public static class Asn1OpaqueObjectEncoder {
-        public static byte[] encode(Asn1OpaqueObject object) {
-            ByteBuffer buf = object.getEncoded();
-            byte[] result = new byte[buf.remaining()];
-            buf.get(result);
-            return result;
+            return IssuerAndSerialNumberEncoder((IssuerAndSerialNumber) source);
         }
     }
 
-    public static class ContentInfoEncoder {
-        public static byte[] encode(ContentInfo object) throws Asn1EncodingException {
-            List<byte[]> serializedFields = new ArrayList<>(2);
-            byte[] serializedField;
-
-            serializedField = toOid(object.contentType);
-            serializedFields.add(serializedField);
-
-            byte[] bytes = Asn1OpaqueObjectEncoder.encode(object.content);
-            serializedField = createTag(2, true, 0, bytes);
-            serializedFields.add(serializedField);
-
-            return createTag(
-                    BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
-                    serializedFields.toArray(new byte[0][]));
-        }
+    public static byte[] Asn1OpaqueObjectEncoder(Asn1OpaqueObject object) {
+        ByteBuffer buf = object.getEncoded();
+        byte[] result = new byte[buf.remaining()];
+        buf.get(result);
+        return result;
     }
 
-    public static class SignedDataEncoder {
-        public static byte[] encode(SignedData object) throws Asn1EncodingException {
+    public static byte[] ContentInfoEncoder(ContentInfo object) throws Asn1EncodingException {
+        List<byte[]> serializedFields = new ArrayList<>(2);
+        byte[] serializedField;
 
-            List<byte[]> serializedFields = new ArrayList<>(6);
-            byte[] serializedField = null;
+        serializedField = toOid(object.contentType);
+        serializedFields.add(serializedField);
 
+        byte[] bytes = Asn1OpaqueObjectEncoder(object.content);
+        serializedField = createTag(2, true, 0, bytes);
+        serializedFields.add(serializedField);
 
-            serializedField = toInteger(object.version);
-            serializedFields.add(serializedField);
-
-
-            serializedField = toSetOf(object.digestAlgorithms, Asn1Type.ANY);
-            serializedFields.add(serializedField);
-
-
-            serializedField = EncapsulatedContentInfoEncoder.encode(object.encapContentInfo);
-            serializedFields.add(serializedField);
-
-
-            if(object.certificates != null) {
-                serializedField = toSetOf(object.certificates, Asn1Type.ANY);
-                serializedField[0] = BerEncoding.setTagNumber(serializedField[0], 0);
-                serializedField[0] = BerEncoding.setTagClass(serializedField[0], 2);
-                serializedFields.add(serializedField);
-            }
-
-            if(object.crls != null) {
-                serializedField = toSetOf(object.crls, Asn1Type.ANY);
-                serializedField[0] = BerEncoding.setTagNumber(serializedField[0], 1);
-                serializedField[0] = BerEncoding.setTagClass(serializedField[0], 2);
-                serializedFields.add(serializedField);
-            }
-
-            serializedField = toSetOf(object.signerInfos, Asn1Type.ANY);
-            serializedFields.add(serializedField);
-
-            return createTag(
-                    BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
-                    serializedFields.toArray(new byte[0][]));
-        }
+        return createTag(
+                BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
+                serializedFields.toArray(new byte[0][]));
     }
 
-    public static class EncapsulatedContentInfoEncoder {
-        public static byte[] encode(EncapsulatedContentInfo object) throws Asn1EncodingException {
+    public static byte[] SignedDataEncoder(SignedData object) throws Asn1EncodingException {
 
-            List<byte[]> serializedFields = new ArrayList<>(2);
-            byte[] serializedField;
+        List<byte[]> serializedFields = new ArrayList<>(6);
+        byte[] serializedField;
 
-            serializedField = toOid(object.contentType);
+
+        serializedField = toInteger(object.version);
+        serializedFields.add(serializedField);
+
+
+        serializedField = toSetOf(object.digestAlgorithms);
+        serializedFields.add(serializedField);
+
+
+        serializedField = EncapsulatedContentInfoEncoder(object.encapContentInfo);
+        serializedFields.add(serializedField);
+
+
+        if(object.certificates != null) {
+            serializedField = toSetOf(object.certificates);
+            serializedField[0] = BerEncoding.setTagNumber(serializedField[0], 0);
+            serializedField[0] = BerEncoding.setTagClass(serializedField[0], 2);
             serializedFields.add(serializedField);
-
-
-            if (object.content != null) {
-                ByteBuffer buf = object.content;
-                byte[] value = new byte[buf.remaining()];
-                buf.slice().get(value);
-                serializedField = createTag(
-                        BerEncoding.TAG_CLASS_UNIVERSAL,
-                        false,
-                        BerEncoding.getTagNumber(Asn1Type.OCTET_STRING),
-                        value);
-                serializedFields.add(serializedField);
-            }
-
-            return createTag(
-                    BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
-                    serializedFields.toArray(new byte[0][]));
         }
+
+        if(object.crls != null) {
+            serializedField = toSetOf(object.crls);
+            serializedField[0] = BerEncoding.setTagNumber(serializedField[0], 1);
+            serializedField[0] = BerEncoding.setTagClass(serializedField[0], 2);
+            serializedFields.add(serializedField);
+        }
+
+        serializedField = toSetOf(object.signerInfos);
+        serializedFields.add(serializedField);
+
+        return createTag(
+                BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
+                serializedFields.toArray(new byte[0][]));
     }
 
-    public static class AlgorithmIdentifierEncoder {
-        public static byte[] encode(AlgorithmIdentifier object) throws Asn1EncodingException {
+    public static byte[] EncapsulatedContentInfoEncoder(EncapsulatedContentInfo object) throws Asn1EncodingException {
 
-            List<byte[]> serializedFields = new ArrayList<>(2);
-            byte[] serializedField;
+        List<byte[]> serializedFields = new ArrayList<>(2);
+        byte[] serializedField;
 
-            serializedField = toOid(object.algorithm);
-            serializedFields.add(serializedField);
-
-            if(object.parameters != null) {
-                serializedField = Asn1OpaqueObjectEncoder.encode(object.parameters);
-                serializedFields.add(serializedField);
-            }
+        serializedField = toOid(object.contentType);
+        serializedFields.add(serializedField);
 
 
-            return createTag(
-                    BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
-                    serializedFields.toArray(new byte[0][]));
-        }
-    }
-
-    public static class IssuerAndSerialNumberEncoder {
-        public static byte[] encode(IssuerAndSerialNumber object) {
-            List<byte[]> serializedFields = new ArrayList<>(2);
-            byte[] serializedField;
-
-            serializedField = Asn1OpaqueObjectEncoder.encode(object.issuer);
-            serializedFields.add(serializedField);
-
-            serializedField = toInteger(object.certificateSerialNumber);
-            serializedFields.add(serializedField);
-
-            return createTag(
-                    BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
-                    serializedFields.toArray(new byte[0][]));
-        }
-    }
-
-    public static class SignerInfoEncoder {
-        public static byte[] encode(SignerInfo object) throws Asn1EncodingException {
-
-            List<byte[]> serializedFields = new ArrayList<>(7);
-            byte[] serializedField;
-
-
-            serializedField = toInteger(object.version);
-            serializedFields.add(serializedField);
-
-
-            serializedField = toChoice(object.sid);
-            serializedFields.add(serializedField);
-
-            serializedField = AlgorithmIdentifierEncoder.encode(object.digestAlgorithm);
-            serializedFields.add(serializedField);
-
-            if(object.signedAttrs != null) {
-                // WHY signedAttrs is SET_OF ???
-                serializedField = toSetOf((Collection<?>) object.signedAttrs, Asn1Type.ANY);
-                serializedField[0] = BerEncoding.setTagNumber(serializedField[0], 0);
-                serializedField[0] = BerEncoding.setTagClass(serializedField[0], BerEncoding.TAG_CLASS_UNIVERSAL);
-                serializedFields.add(serializedField);
-            }
-
-            serializedField = AlgorithmIdentifierEncoder.encode(object.signatureAlgorithm);
-            serializedFields.add(serializedField);
-
-            ByteBuffer buf = object.signature;
+        if (object.content != null) {
+            ByteBuffer buf = object.content;
             byte[] value = new byte[buf.remaining()];
             buf.slice().get(value);
             serializedField = createTag(
@@ -778,18 +369,93 @@ public final class Asn1SpecificDerEncoder {
                     BerEncoding.getTagNumber(Asn1Type.OCTET_STRING),
                     value);
             serializedFields.add(serializedField);
-
-
-            if(object.unsignedAttrs != null) {
-                serializedField = toSetOf((Collection<?>) object.unsignedAttrs, Asn1Type.ANY);
-                serializedField[0] = BerEncoding.setTagNumber(serializedField[0], 1);
-                serializedField[0] = BerEncoding.setTagClass(serializedField[0], BerEncoding.TAG_CLASS_UNIVERSAL);
-                serializedFields.add(serializedField);
-            }
-
-            return createTag(
-                    BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
-                    serializedFields.toArray(new byte[0][]));
         }
+
+        return createTag(
+                BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
+                serializedFields.toArray(new byte[0][]));
+    }
+
+    public static byte[] AlgorithmIdentifierEncoder(AlgorithmIdentifier object) throws Asn1EncodingException {
+
+        List<byte[]> serializedFields = new ArrayList<>(2);
+        byte[] serializedField;
+
+        serializedField = toOid(object.algorithm);
+        serializedFields.add(serializedField);
+
+        if(object.parameters != null) {
+            serializedField = Asn1OpaqueObjectEncoder(object.parameters);
+            serializedFields.add(serializedField);
+        }
+
+
+        return createTag(
+                BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
+                serializedFields.toArray(new byte[0][]));
+    }
+
+    public static byte[] IssuerAndSerialNumberEncoder(IssuerAndSerialNumber object) {
+        List<byte[]> serializedFields = new ArrayList<>(2);
+        byte[] serializedField;
+
+        serializedField = Asn1OpaqueObjectEncoder(object.issuer);
+        serializedFields.add(serializedField);
+
+        serializedField = toInteger(object.certificateSerialNumber);
+        serializedFields.add(serializedField);
+
+        return createTag(
+                BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
+                serializedFields.toArray(new byte[0][]));
+    }
+
+    public static byte[] SignerInfoEncoder(SignerInfo object) throws Asn1EncodingException {
+        List<byte[]> serializedFields = new ArrayList<>(7);
+        byte[] serializedField;
+
+
+        serializedField = toInteger(object.version);
+        serializedFields.add(serializedField);
+
+
+        serializedField = toChoice(object.sid);
+        serializedFields.add(serializedField);
+
+        serializedField = AlgorithmIdentifierEncoder(object.digestAlgorithm);
+        serializedFields.add(serializedField);
+
+        if(object.signedAttrs != null) {
+            // WHY signedAttrs is SET_OF ???
+            serializedField = toSetOf((Collection<?>) object.signedAttrs);
+            serializedField[0] = BerEncoding.setTagNumber(serializedField[0], 0);
+            serializedField[0] = BerEncoding.setTagClass(serializedField[0], BerEncoding.TAG_CLASS_UNIVERSAL);
+            serializedFields.add(serializedField);
+        }
+
+        serializedField = AlgorithmIdentifierEncoder(object.signatureAlgorithm);
+        serializedFields.add(serializedField);
+
+        ByteBuffer buf = object.signature;
+        byte[] value = new byte[buf.remaining()];
+        buf.slice().get(value);
+        serializedField = createTag(
+                BerEncoding.TAG_CLASS_UNIVERSAL,
+                false,
+                BerEncoding.getTagNumber(Asn1Type.OCTET_STRING),
+                value);
+        serializedFields.add(serializedField);
+
+
+        if(object.unsignedAttrs != null) {
+            serializedField = toSetOf((Collection<?>) object.unsignedAttrs);
+            serializedField[0] = BerEncoding.setTagNumber(serializedField[0], 1);
+            serializedField[0] = BerEncoding.setTagClass(serializedField[0], BerEncoding.TAG_CLASS_UNIVERSAL);
+            serializedFields.add(serializedField);
+        }
+
+        return createTag(
+                BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
+                serializedFields.toArray(new byte[0][]));
     }
 }

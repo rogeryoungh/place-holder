@@ -1156,8 +1156,8 @@ public class ApkSigningBlockUtils {
         signedData.signerInfos = Collections.singletonList(signerInfo);
         ContentInfo contentInfo = new ContentInfo();
         contentInfo.contentType = Pkcs7Constants.OID_SIGNED_DATA;
-        contentInfo.content = new Asn1OpaqueObject(Asn1SpecificDerEncoder.SignedDataEncoder.encode(signedData));
-        return Asn1SpecificDerEncoder.ContentInfoEncoder.encode(contentInfo);
+        contentInfo.content = new Asn1OpaqueObject(Asn1SpecificDerEncoder.SignedDataEncoder(signedData));
+        return Asn1SpecificDerEncoder.ContentInfoEncoder(contentInfo);
     }
 
     /**
