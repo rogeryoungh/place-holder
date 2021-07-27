@@ -20,7 +20,9 @@ import com.android.apksig.internal.asn1.ber.BerEncoding;
 import com.android.apksig.internal.pkcs7.AlgorithmIdentifier;
 import com.android.apksig.internal.pkcs7.ContentInfo;
 import com.android.apksig.internal.pkcs7.EncapsulatedContentInfo;
+import com.android.apksig.internal.pkcs7.IssuerAndSerialNumber;
 import com.android.apksig.internal.pkcs7.SignedData;
+import com.android.apksig.internal.pkcs7.SignerInfo;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
@@ -60,12 +62,11 @@ public final class Asn1SpecificDerEncoder {
         if(containerClass == AlgorithmIdentifier.class) {
             return AlgorithmIdentifierEncoder.encode((AlgorithmIdentifier) container);
         }
+        if(containerClass == SignerInfo.class) {
+            return Asn1InfoDerEncoder.encode((SignerInfo) container);
+        }
         Asn1Class containerAnnotation = null;
         containerAnnotation = containerClass.getDeclaredAnnotation(Asn1Class.class);
-        if (containerAnnotation == null) {
-            throw new Asn1EncodingException(
-                    containerClass.getName() + " not annotated with " + Asn1Class.class.getName());
-        }
 
         Asn1Type containerType = containerAnnotation.type();
         switch (containerType) {
@@ -713,6 +714,23 @@ public final class Asn1SpecificDerEncoder {
                 serializedFields.add(serializedField);
             }
 
+
+            return createTag(
+                    BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
+                    serializedFields.toArray(new byte[0][]));
+        }
+    }
+
+    public static class IssuerAndSerialNumberEncoder {
+        public static byte[] encode(IssuerAndSerialNumber object) {
+            List<byte[]> serializedFields = new ArrayList<>(2);
+            byte[] serializedField;
+
+            serializedField = Asn1SpecificDerEncoder.Asn1OpaqueObjectEncoder.encode(object.issuer);
+            serializedFields.add(serializedField);
+
+            serializedField = toInteger(object.certificateSerialNumber);
+            serializedFields.add(serializedField);
 
             return createTag(
                     BerEncoding.TAG_CLASS_UNIVERSAL, true, BerEncoding.TAG_NUMBER_SEQUENCE,
