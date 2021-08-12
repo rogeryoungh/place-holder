@@ -25,40 +25,13 @@
         android:text="com.ss.android.ugc.aweme" />
 
     <Button
-        android:id="@+id/button2"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_margin="10dp"
-        android:onClick="prepare"
-        android:text="Prepare Dex &amp; KEYSTORE"
-        app:layout_constraintTop_toBottomOf="@id/package_name" />
-
-    <Button
-        android:id="@+id/button3"
+        android:id="@+id/generate"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="10dp"
         android:onClick="gen"
-        android:text="Generate AXML"
-        app:layout_constraintTop_toBottomOf="@id/button2" />
-
-    <Button
-        android:id="@+id/button4"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_margin="10dp"
-        android:onClick="apk"
         android:text="Generate apk"
-        app:layout_constraintTop_toBottomOf="@id/button3" />
-
-    <Button
-        android:id="@+id/button5"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_margin="10dp"
-        android:onClick="sign"
-        android:text="Sign APK"
-        app:layout_constraintTop_toBottomOf="@id/button4" />
+        app:layout_constraintTop_toBottomOf="@id/package_name" />
 
     <Button
         android:id="@+id/install"
@@ -67,7 +40,7 @@
         android:layout_margin="10dp"
         android:onClick="install"
         android:text="Install APK"
-        app:layout_constraintTop_toBottomOf="@id/button5" />
+        app:layout_constraintTop_toBottomOf="@id/generate" />
 
     <Button
         android:id="@+id/share"
@@ -77,5 +50,14 @@
         android:onClick="share"
         android:text="Share APK"
         app:layout_constraintTop_toBottomOf="@id/install" />
+
+    <Button
+        android:id="@+id/list"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="10dp"
+        android:onClick="list"
+        android:text="List Installed App"
+        app:layout_constraintTop_toBottomOf="@id/share" />
 
 </LinearLayout>

@@ -7,7 +7,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
@@ -39,7 +38,6 @@ public class MainActivity extends AppCompatActivity {
     String keyAlias = "mykey";
     String password = "123456";
 
-
     EditText name_text, pakage_text;
 
     byte[] data;
@@ -53,11 +51,29 @@ public class MainActivity extends AppCompatActivity {
         pakage_text = findViewById(R.id.package_name);
     }
 
-    public void gen(View view) {
-        String name = name_text.getText().toString();
-        String pak = pakage_text.getText().toString();
+    private void prepare(String fileName, int id) {
+        data = new byte[8192];
+        int len;
+        //获取文件中的内容
+        try (InputStream inputStream = getResources().openRawResource(id)) {
+            len = inputStream.read(data);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return;
+        }
 
-        GenerateAXML g = new GenerateAXML(name, pak);
+        try (FileOutputStream fos = this.openFileOutput(fileName, Context.MODE_PRIVATE)) {
+            fos.write(data, 0, len);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // Toast.makeText(this, "Prepare Success: " + fileName + " (" + len + " byte)",
+        //         Toast.LENGTH_SHORT).show();
+    }
+
+    private void generateAXML(String appName, String packageName) {
+        GenerateAXML g = new GenerateAXML(appName, packageName);
         data = g.generate();
 
         try (FileOutputStream fos = this.openFileOutput(xmlName, Context.MODE_PRIVATE)) {
@@ -66,46 +82,11 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        Toast.makeText(this, "Generate Success: " + xmlName + "(" + data.length + " byte)", Toast.LENGTH_SHORT).show();
-
+        // Toast.makeText(this, "Generate Success: " + xmlName + "(" + data.length + " byte)",
+        //        Toast.LENGTH_SHORT).show();
     }
 
-    public void prepare(View view) {
-        data = new byte[8192];
-        int len1;
-        //获取文件中的内容
-        try(InputStream inputStream = getResources().openRawResource(R.raw.classes)) {
-            len1 = inputStream.read(data);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return;
-        }
-
-        try (FileOutputStream fos = this.openFileOutput(dexName, Context.MODE_PRIVATE)) {
-            fos.write(data, 0, len1);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        data = new byte[8192];
-        int len2;
-        //获取文件中的内容
-        try(InputStream inputStream = getResources().openRawResource(R.raw.test)) {
-            len2 = inputStream.read(data);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return;
-        }
-
-        try (FileOutputStream fos = this.openFileOutput(keyFileName, Context.MODE_PRIVATE)) {
-            fos.write(data, 0, len2);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        Toast.makeText(this, "Prepare Success: Dex(" + len1 + " byte) & Keystore(" + len2 + " byte)", Toast.LENGTH_SHORT).show();
-    }
-
-    public void apk(View view) {
+    private void generateAPK() {
         int len = 0;
         int sum = 0;
 
@@ -137,23 +118,11 @@ public class MainActivity extends AppCompatActivity {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        Toast.makeText(this, "Generate Success: " + inputApkName + "(" + sum + " byte)", Toast.LENGTH_SHORT).show();
+
+        // Toast.makeText(this, "Generate Success: " + inputApkName + "(" + sum + " byte)", Toast.LENGTH_SHORT).show();
     }
 
-    public void share(View view) {
-        File file = new File(this.getFilesDir(), outputApkName);
-
-        Uri uri = FileProvider.getUriForFile( this, getPackageName()+".fileprovider", file);
-        Intent share = new Intent(Intent.ACTION_SEND);
-        share.putExtra(Intent.EXTRA_STREAM, uri);
-        share.setType("*/*");//此处可发送多种文件
-        share.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        startActivity(Intent.createChooser(share, "分享文件"));
-
-    }
-
-    public void sign(View view) {
+    private void signedAPK() {
         File outputApk = new File(this.getFilesDir(), outputApkName);
         File inputApk = new File(this.getFilesDir(), inputApkName);
         File keystore = new File(this.getFilesDir(), keyFileName);
@@ -196,10 +165,37 @@ public class MainActivity extends AppCompatActivity {
 
 
             apkSigner.sign();
-            Toast.makeText(this, "Sign Success: " + outputApkName, Toast.LENGTH_SHORT).show();
+            // Toast.makeText(this, "Sign Success: " + outputApkName, Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void generateAPP(String appName, String packageName) {
+        prepare(dexName, R.raw.classes);
+        prepare(keyFileName, R.raw.test);
+        generateAXML(appName, packageName);
+        generateAPK();
+        signedAPK();
+    }
+
+    public void share(View view) {
+        File file = new File(this.getFilesDir(), outputApkName);
+
+        Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", file);
+        Intent share = new Intent(Intent.ACTION_SEND);
+        share.putExtra(Intent.EXTRA_STREAM, uri);
+        share.setType("*/*"); // 此处可发送多种文件
+        share.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(Intent.createChooser(share, "分享文件"));
+
+    }
+
+    public void gen(View view) {
+        String name = name_text.getText().toString();
+        String pak = pakage_text.getText().toString();
+        generateAPP(name, pak);
     }
 
     public void install(View view) {
@@ -207,13 +203,19 @@ public class MainActivity extends AppCompatActivity {
 
         Intent intent = new Intent(Intent.ACTION_VIEW);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Uri uri;
         if (Build.VERSION.SDK_INT >= 24) {
-            Uri uri = FileProvider.getUriForFile( this, getPackageName()+".fileprovider", file);
+            uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", file);
             intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            intent.setDataAndType(uri, "application/vnd.android.package-archive");
         } else {
-            intent.setDataAndType(Uri.fromFile(file), "application/vnd.android.package-archive");
+            uri = Uri.fromFile(file);
         }
+        intent.setDataAndType(uri, "application/vnd.android.package-archive");
+        startActivity(intent);
+    }
+
+    public void list(View view) {
+        Intent intent = new Intent(MainActivity.this, ListActivity.class);
         startActivity(intent);
     }
 }
