@@ -60,4 +60,13 @@
         android:text="List Installed App"
         app:layout_constraintTop_toBottomOf="@id/share" />
 
+    <Button
+        android:id="@+id/uninstall"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="10dp"
+        android:onClick="uninstall"
+        android:text="Uninstall App (By Package Name)"
+        app:layout_constraintTop_toBottomOf="@id/list" />
+
 </LinearLayout>

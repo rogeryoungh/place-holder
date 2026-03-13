@@ -1,5 +1,6 @@
 package pers.roger.placeholder;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -7,7 +8,10 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
 
@@ -41,6 +45,23 @@ public class MainActivity extends AppCompatActivity {
     EditText name_text, pakage_text;
 
     byte[] data;
+
+    private final ActivityResultLauncher<Intent> start_for_result = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    Intent data = result.getData();
+                    if (data != null) {
+                        String packageName = data.getStringExtra("SELECT_PACKAGE_NAME");
+                        String appName = data.getStringExtra("SELECT_APP_NAME");
+
+                        name_text.setText(appName);
+                        pakage_text.setText(packageName);
+                    }
+                } else if (result.getResultCode() == Activity.RESULT_CANCELED) {
+                    Toast.makeText(MainActivity.this, "用户取消了选择", Toast.LENGTH_SHORT).show();
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -216,6 +237,14 @@ public class MainActivity extends AppCompatActivity {
 
     public void list(View view) {
         Intent intent = new Intent(MainActivity.this, ListActivity.class);
-        startActivity(intent);
+        start_for_result.launch(intent);
+    }
+
+    public void uninstall(View view) {
+        String packageName = pakage_text.getText().toString();
+
+        Uri packageURI = Uri.parse("package:" + packageName);
+        Intent uninstallIntent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE, packageURI);
+        startActivity(uninstallIntent);
     }
 }

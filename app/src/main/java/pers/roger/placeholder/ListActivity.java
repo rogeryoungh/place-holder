@@ -1,8 +1,10 @@
 package pers.roger.placeholder;
 
+import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
@@ -40,7 +42,7 @@ public class ListActivity extends AppCompatActivity {
         loading = findViewById(R.id.loading);
 
         List<PackageInfo> installedPackages = getPackageManager().getInstalledPackages(PackageManager.GET_ACTIVITIES);
-        loading.setText("Loading " + installedPackages.size() + " APPS");
+        loading.setText(String.format("Loading %d APPS", installedPackages.size()));
 
         listview_main.setLayoutManager(new LinearLayoutManager(this));
         listview_main.setItemViewCacheSize(100);
@@ -63,10 +65,10 @@ class AppsAdapter extends RecyclerView.Adapter<AppsViewHolder> {
     private static final String TAG = "AppsAdapter";
     AppInfo[] appInfos;
     PackageManager packageManager;
-    Context context;
+    Activity context;
     ClickListener clickLisener;
 
-    public AppsAdapter(Context context, PackageManager packageManager) {
+    public AppsAdapter(Activity context, PackageManager packageManager) {
         this.context = context;
         clickLisener = new ClickListener();
         this.packageManager = packageManager;
@@ -105,13 +107,23 @@ class AppsAdapter extends RecyclerView.Adapter<AppsViewHolder> {
     class ClickListener implements View.OnClickListener {
         @Override
         public void onClick(View v) {
-            String packageName = v.getTag().toString();
+            AppInfo appInfo = (AppInfo) v.getTag();
+            String packageName = appInfo.appPackageName;
+            String appName = appInfo.appName;
+
             ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
             ClipData clip = ClipData.newPlainText("simple text", packageName);
             clipboard.setPrimaryClip(clip);
             Toast.makeText(context, "Copy Success: " + packageName, Toast.LENGTH_SHORT).show();
 
             Log.i(TAG, packageName);
+
+            Intent intent = new Intent();
+            intent.putExtra("SELECT_PACKAGE_NAME", packageName);
+            intent.putExtra("SELECT_APP_NAME", appName);
+
+            context.setResult(Activity.RESULT_OK, intent);
+            context.finish();
         }
     }
 }
@@ -135,7 +147,7 @@ class AppsViewHolder extends RecyclerView.ViewHolder {
         apps_title.setText(info.appName);
         apps_pkg.setText(info.appPackageName);
         imageView.setImageDrawable(info.appIcon);
-        itemView.setTag(info.appPackageName);
+        itemView.setTag(info);
         isload = true;
     }
 }
