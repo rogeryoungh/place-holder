@@ -1,5 +1,8 @@
 name: Build Android APK
 
+# https://github.com/ronynn/karui/blob/master/.github/workflows/android.yml
+
+
 on:
   push:
     branches:
@@ -10,6 +13,10 @@ jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v6
@@ -22,13 +29,16 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
-
+     
+      - name: Setup Keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > keystore.jks
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleRelease
+
 
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
-          name: PlaceHolder-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: placeholder.apk
+          path: app/build/outputs/apk/release/app-release.apk
